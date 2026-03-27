@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}QuantDash{% endblock %}</title>
+
+  <!-- Google Fonts: DM Mono + Syne -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:        #080c14;
+      --bg2:       #0d1320;
+      --bg3:       #111827;
+      --surface:   #141c2e;
+      --border:    #1e2d47;
+      --accent:    #00d4ff;
+      --accent2:   #7b61ff;
+      --green:     #00e5a0;
+      --red:       #ff4d6a;
+      --yellow:    #f5c518;
+      --text:      #e8edf5;
+      --muted:     #5a6a82;
+      --font-head: 'Syne', sans-serif;
+      --font-mono: 'DM Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { font-size: 14px; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 220px;
+      min-height: 100vh;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 100;
+    }
+
+    .sidebar-logo {
+      padding: 0 20px 28px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-logo .brand {
+      font-family: var(--font-head);
+      font-size: 1.3rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--accent);
+    }
+
+    .sidebar-logo .sub {
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .nav-section {
+      padding: 20px 14px 0;
+    }
+
+    .nav-label {
+      font-size: 0.6rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0 8px;
+      margin-bottom: 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-family: var(--font-head);
+      font-weight: 600;
+      transition: all .18s;
+      margin-bottom: 2px;
+    }
+
+    .nav-item:hover, .nav-item.active {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .nav-item.active { color: var(--accent); }
+
+    .nav-item .icon { font-size: 1rem; width: 18px; text-align: center; }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 0.65rem;
+      color: var(--muted);
+    }
+
+    /* ── Main layout ── */
+    .main {
+      margin-left: 220px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      height: 56px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      position: sticky;
+      top: 0;
+      z-index: 90;
+    }
+
+    .topbar-title {
+      font-family: var(--font-head);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+      display: inline-block;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .3; }
+    }
+
+    .content { padding: 28px; flex: 1; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+
+    .card-title {
+      font-family: var(--font-head);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* ── KPI Grid ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+    }
+
+    .kpi-card.accent::before   { background: var(--accent); }
+    .kpi-card.green::before    { background: var(--green); }
+    .kpi-card.red::before      { background: var(--red); }
+    .kpi-card.purple::before   { background: var(--accent2); }
+    .kpi-card.yellow::before   { background: var(--yellow); }
+
+    .kpi-label {
+      font-size: 0.62rem;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .kpi-value {
+      font-family: var(--font-head);
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+
+    .kpi-sub {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    .up   { color: var(--green); }
+    .down { color: var(--red); }
+
+    /* ── Grid layouts ── */
+    .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 24px; }
+    .grid-equal { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+
+    /* ── Table ── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .data-table th {
+      font-family: var(--font-head);
+      font-size: 0.6rem;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
+    }
+    .data-table tr:hover td { background: var(--bg3); }
+    .data-table tr:last-child td { border-bottom: none; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+    .badge-tech      { background: #1a2a4a; color: #60a5fa; }
+    .badge-finance   { background: #1a2f2a; color: #34d399; }
+    .badge-energy    { background: #2f2a1a; color: #fbbf24; }
+    .badge-commodity { background: #2f1a2a; color: #f472b6; }
+    .badge-bond      { background: #2a2a2f; color: #a78bfa; }
+  </style>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand">QuantDash</div>
+      <div class="sub">Finance Analytics</div>
+    </div>
+    <nav class="nav-section">
+      <div class="nav-label">Core</div>
+      <a href="{% url 'dashboard:index' %}" class="nav-item {% block nav_dashboard %}{% endblock %}">
+        <span class="icon">◈</span> Dashboard
+      </a>
+      <a href="{% url 'dashboard:assets' %}" class="nav-item {% block nav_assets %}{% endblock %}">
+        <span class="icon">◇</span> Assets
+      </a>
+      <a href="{% url 'dashboard:risk' %}" class="nav-item {% block nav_risk %}{% endblock %}">
+        <span class="icon">△</span> Risk
+      </a>
+    </nav>
+    <nav class="nav-section" style="margin-top:16px;">
+      <div class="nav-label">Admin</div>
+      <a href="/admin/" class="nav-item">
+        <span class="icon">⚙</span> Admin
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      QuantDash v1.0<br>
+      <span style="color:var(--accent)">● </span>Données simulées
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
+      <div class="topbar-right">
+        <span><span class="live-dot"></span> LIVE</span>
+        <span id="clock">--:--:--</span>
+      </div>
+    </header>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <script>
+    // Live clock
+    function tick() {
+      document.getElementById('clock').textContent =
+        new Date().toLocaleTimeString('fr-FR', {timeZone: 'Africa/Casablanca'});
+    }
+    tick();
+    setInterval(tick, 1000);
+  </script>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,93 @@
+{% extends "dashboard/base.html" %}
+{% block title %}QuantDash — Assets{% endblock %}
+{% block nav_assets %}active{% endblock %}
+{% block page_title %}Asset Screener{% endblock %}
+
+{% block content %}
+
+<!-- Filters Bar -->
+<div class="card" style="margin-bottom:16px;padding:14px 20px;">
+  <form method="get" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+    <input type="text" name="q" value="{{ query }}" placeholder="Rechercher ticker / nom..."
+      style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 14px;
+             color:var(--text);font-family:var(--font-mono);font-size:0.8rem;width:220px;outline:none;">
+    <select name="sector"
+      style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;
+             color:var(--text);font-family:var(--font-mono);font-size:0.8rem;outline:none;">
+      <option value="">Tous les secteurs</option>
+      {% for s in sectors %}
+        <option value="{{ s }}" {% if s == selected_sector %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+    <select name="sort"
+      style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;
+             color:var(--text);font-family:var(--font-mono);font-size:0.8rem;outline:none;">
+      <option value="ticker" {% if sort == 'ticker' %}selected{% endif %}>Trier: Ticker</option>
+      <option value="pnl_pct" {% if sort == 'pnl_pct' %}selected{% endif %}>Trier: PnL %</option>
+      <option value="market_value" {% if sort == 'market_value' %}selected{% endif %}>Trier: Valeur</option>
+      <option value="weight" {% if sort == 'weight' %}selected{% endif %}>Trier: Poids</option>
+    </select>
+    <button type="submit"
+      style="background:var(--accent);color:var(--bg);border:none;border-radius:8px;padding:8px 18px;
+             font-family:var(--font-head);font-size:0.8rem;font-weight:700;cursor:pointer;">
+      Filtrer
+    </button>
+    {% if query or selected_sector %}
+    <a href="/assets/" style="color:var(--muted);font-size:0.75rem;text-decoration:none;">✕ Reset</a>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Results count -->
+<div style="font-size:0.7rem;color:var(--muted);margin-bottom:12px;">
+  {{ holdings|length }} résultat{{ holdings|length|pluralize }} trouvé{{ holdings|length|pluralize }}
+</div>
+
+<!-- Table -->
+<div class="card">
+  <table class="data-table" id="assetsTable">
+    <thead>
+      <tr>
+        <th>#</th><th>Ticker</th><th>Nom</th><th>Secteur</th><th>Type</th>
+        <th>Px Achat</th><th>Px Actuel</th><th>Val. Marché</th>
+        <th>Poids</th><th>PnL $</th><th>PnL %</th><th>Signal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in holdings %}
+      <tr>
+        <td style="color:var(--muted);">{{ forloop.counter }}</td>
+        <td>
+          <a href="/assets/{{ h.ticker }}/"
+             style="color:var(--accent);text-decoration:none;font-weight:700;letter-spacing:.5px;">
+            {{ h.ticker }}
+          </a>
+        </td>
+        <td>{{ h.name }}</td>
+        <td><span class="badge badge-{{ h.sector|lower }}">{{ h.sector }}</span></td>
+        <td style="color:var(--muted);font-size:0.72rem;">{{ h.type }}</td>
+        <td>${{ h.avg }}</td>
+        <td><strong>${{ h.price }}</strong></td>
+        <td>${{ h.market_value|floatformat:2 }}</td>
+        <td style="font-size:0.75rem;">{{ h.weight }}%</td>
+        <td class="{% if h.pnl >= 0 %}up{% else %}down{% endif %}">
+          {% if h.pnl >= 0 %}+{% endif %}${{ h.pnl|floatformat:2 }}
+        </td>
+        <td class="{% if h.pnl_pct >= 0 %}up{% else %}down{% endif %}">
+          {% if h.pnl_pct >= 0 %}▲ +{% else %}▼ {% endif %}{{ h.pnl_pct|floatformat:2 }}%
+        </td>
+        <td>
+          {% if h.pnl_pct > 15 %}<span style="color:var(--green);font-size:0.7rem;font-weight:600;">STRONG HOLD</span>
+          {% elif h.pnl_pct > 5 %}<span style="color:var(--accent);font-size:0.7rem;font-weight:600;">HOLD</span>
+          {% elif h.pnl_pct > -5 %}<span style="color:var(--yellow);font-size:0.7rem;font-weight:600;">WATCH</span>
+          {% else %}<span style="color:var(--red);font-size:0.7rem;font-weight:600;">REVIEW</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="12" style="text-align:center;color:var(--muted);padding:28px;">Aucun résultat.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

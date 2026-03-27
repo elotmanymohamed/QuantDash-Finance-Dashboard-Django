@@ -1,0 +1,123 @@
+{% extends "dashboard/base.html" %}
+{% block title %}QuantDash — Portfolio{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block page_title %}Portfolio Overview{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>.chart-wrap{position:relative;height:240px;}</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- KPI Row -->
+<div class="kpi-grid">
+  <div class="kpi-card accent">
+    <div class="kpi-label">Valeur Portefeuille</div>
+    <div class="kpi-value">${{ total_value|floatformat:0 }}</div>
+    <div class="kpi-sub"><span class="{% if risk.annualized_return >= 0 %}up{% else %}down{% endif %}">{{ risk.annualized_return }}%</span> rendement ann.</div>
+  </div>
+  <div class="kpi-card {% if daily_pnl >= 0 %}green{% else %}red{% endif %}">
+    <div class="kpi-label">PnL Journalier</div>
+    <div class="kpi-value {% if daily_pnl >= 0 %}up{% else %}down{% endif %}">
+      {% if daily_pnl >= 0 %}+{% endif %}${{ daily_pnl|floatformat:2 }}
+    </div>
+    <div class="kpi-sub">{{ daily_pnl_pct }}% aujourd'hui</div>
+  </div>
+  <div class="kpi-card purple">
+    <div class="kpi-label">Ratio de Sharpe</div>
+    <div class="kpi-value">{{ risk.sharpe }}</div>
+    <div class="kpi-sub">Sortino: {{ risk.sortino }}</div>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-label">VaR MC 95% (1J)</div>
+    <div class="kpi-value down">{{ risk.var_95_mc }}%</div>
+    <div class="kpi-sub">CVaR: {{ risk.cvar_95 }}%</div>
+  </div>
+  <div class="kpi-card yellow">
+    <div class="kpi-label">Volatilité Ann.</div>
+    <div class="kpi-value">{{ risk.annualized_vol }}%</div>
+    <div class="kpi-sub">Max DD: {{ risk.max_drawdown }}%</div>
+  </div>
+</div>
+
+<!-- Charts Row -->
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">NAV — Historique portefeuille</div>
+    <div class="chart-wrap"><canvas id="navChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Allocation Sectorielle</div>
+    <div class="chart-wrap"><canvas id="sectorChart"></canvas></div>
+  </div>
+</div>
+
+<!-- Holdings Table -->
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div class="card-title" style="margin-bottom:0;">Positions — Données en temps réel</div>
+    <span style="font-size:0.65rem;color:var(--green);"><span class="live-dot"></span> yfinance LIVE</span>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Ticker</th><th>Nom</th><th>Secteur</th><th>Type</th>
+        <th>Qté</th><th>Px Moyen</th><th>Px Actuel</th>
+        <th>Val. Marché</th><th>Poids</th><th>PnL $</th><th>PnL %</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in holdings %}
+      <tr>
+        <td><a href="/assets/{{ h.ticker }}/" style="color:var(--accent);text-decoration:none;font-weight:600;letter-spacing:.5px;">{{ h.ticker }}</a></td>
+        <td>{{ h.name }}</td>
+        <td><span class="badge badge-{{ h.sector|lower }}">{{ h.sector }}</span></td>
+        <td style="color:var(--muted);font-size:0.72rem;">{{ h.type }}</td>
+        <td>{{ h.qty }}</td>
+        <td>${{ h.avg }}</td>
+        <td><strong>${{ h.price }}</strong></td>
+        <td>${{ h.market_value|floatformat:2 }}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div style="width:50px;height:4px;background:var(--border);border-radius:2px;">
+              <div style="width:{{ h.weight }}%;height:100%;background:var(--accent);border-radius:2px;max-width:100%;"></div>
+            </div>
+            <span style="font-size:0.72rem;">{{ h.weight }}%</span>
+          </div>
+        </td>
+        <td class="{% if h.pnl >= 0 %}up{% else %}down{% endif %}">{% if h.pnl >= 0 %}+{% endif %}${{ h.pnl|floatformat:2 }}</td>
+        <td class="{% if h.pnl_pct >= 0 %}up{% else %}down{% endif %}">{% if h.pnl_pct >= 0 %}▲{% else %}▼{% endif %} {{ h.pnl_pct|floatformat:2 }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const LABELS = {{ chart_labels|safe }};
+const VALUES = {{ chart_values|safe }};
+const SL = {{ sector_labels|safe }};
+const SV = {{ sector_values|safe }};
+const mono = "'DM Mono',monospace";
+const grid = 'rgba(30,45,71,0.7)';
+
+new Chart(document.getElementById('navChart'),{
+  type:'line',
+  data:{labels:LABELS,datasets:[{data:VALUES,borderColor:'#00d4ff',borderWidth:1.5,pointRadius:0,fill:true,
+    backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,240);g.addColorStop(0,'rgba(0,212,255,0.18)');g.addColorStop(1,'rgba(0,212,255,0)');return g;},tension:0.4}]},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+    scales:{x:{ticks:{color:'#5a6a82',font:{family:mono,size:10},maxTicksLimit:6},grid:{color:grid}},
+            y:{ticks:{color:'#5a6a82',font:{family:mono,size:10},callback:v=>'$'+(v/1000).toFixed(0)+'k'},grid:{color:grid}}}}
+});
+
+new Chart(document.getElementById('sectorChart'),{
+  type:'doughnut',
+  data:{labels:SL,datasets:[{data:SV,backgroundColor:['#00d4ff','#7b61ff','#00e5a0','#ff4d6a','#f5c518','#f472b6','#60a5fa'],borderColor:'#141c2e',borderWidth:3,hoverOffset:6}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
+    plugins:{legend:{position:'right',labels:{color:'#e8edf5',font:{family:mono,size:11},padding:14}}}}
+});
+</script>
+{% endblock %}

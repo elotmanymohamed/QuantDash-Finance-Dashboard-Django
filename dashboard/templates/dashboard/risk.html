@@ -1,0 +1,157 @@
+{% extends "dashboard/base.html" %}
+{% block title %}QuantDash — Risk Analytics{% endblock %}
+{% block nav_risk %}active{% endblock %}
+{% block page_title %}Risk Analytics — Monte Carlo{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>.chart-wrap{position:relative;height:260px;}</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Risk KPIs -->
+<div class="kpi-grid" style="margin-bottom:20px;">
+  <div class="kpi-card accent">
+    <div class="kpi-label">Rendement Ann.</div>
+    <div class="kpi-value {% if risk.annualized_return >= 0 %}up{% else %}down{% endif %}">{{ risk.annualized_return }}%</div>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-label">VaR 95% (Param.)</div>
+    <div class="kpi-value down">{{ risk.var_95_param }}%</div>
+    <div class="kpi-sub">≈ ${{ total_value|floatformat:0 }} × {{ risk.var_95_param }}%</div>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-label">VaR 95% (Monte Carlo)</div>
+    <div class="kpi-value down">{{ risk.var_95_mc }}%</div>
+    <div class="kpi-sub">10 000 simulations GBM</div>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-label">CVaR 95% (ES)</div>
+    <div class="kpi-value down">{{ risk.cvar_95 }}%</div>
+    <div class="kpi-sub">Expected Shortfall</div>
+  </div>
+  <div class="kpi-card yellow">
+    <div class="kpi-label">Volatilité Ann.</div>
+    <div class="kpi-value">{{ risk.annualized_vol }}%</div>
+  </div>
+  <div class="kpi-card purple">
+    <div class="kpi-label">Sharpe</div>
+    <div class="kpi-value">{{ risk.sharpe }}</div>
+    <div class="kpi-sub">Sortino: {{ risk.sortino }}</div>
+  </div>
+</div>
+
+<!-- MC Fan Chart + Histogram -->
+<div class="grid-2" style="margin-bottom:16px;">
+  <div class="card">
+    <div class="card-title">Simulation Monte Carlo — 150 chemins (30J horizon)</div>
+    <div class="chart-wrap"><canvas id="mcFanChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Distribution Historique des Rendements (1J)</div>
+    <div class="chart-wrap"><canvas id="retChart"></canvas></div>
+  </div>
+</div>
+
+<!-- Metrics Table + Note -->
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">Tableau Comparatif — VaR Paramétrique vs Monte Carlo</div>
+    <table class="data-table" style="margin-top:10px;">
+      <thead><tr><th>Métrique</th><th>Paramétrique</th><th>Monte Carlo</th></tr></thead>
+      <tbody>
+        <tr><td>VaR 95% (1J)</td><td class="down">{{ risk.var_95_param }}%</td><td class="down">{{ risk.var_95_mc }}%</td></tr>
+        <tr><td>VaR 99% (1J)</td><td class="down">{{ risk.var_99_param }}%</td><td class="down" style="color:var(--muted);">—</td></tr>
+        <tr><td>CVaR 95%</td><td class="down">{{ risk.cvar_95 }}%</td><td class="down" style="color:var(--muted);">—</td></tr>
+        <tr><td>Sharpe Ratio</td><td class="up" colspan="2">{{ risk.sharpe }}</td></tr>
+        <tr><td>Sortino Ratio</td><td class="up" colspan="2">{{ risk.sortino }}</td></tr>
+        <tr><td>Max Drawdown</td><td class="down" colspan="2">{{ risk.max_drawdown }}%</td></tr>
+        <tr><td>Calmar Ratio</td><td colspan="2">{{ risk.calmar }}</td></tr>
+        <tr><td>Volatilité Ann.</td><td colspan="2">{{ risk.annualized_vol }}%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <div class="card-title">Note Méthodologique</div>
+    <p style="font-size:0.74rem;color:var(--muted);line-height:1.8;margin-top:10px;">
+      La <strong style="color:var(--text);">VaR Monte Carlo</strong> est calculée via simulation GBM :
+      <em>dS = μ·dt + σ·dW</em> avec 10 000 trajectoires, horizon 1 jour.<br><br>
+      La <strong style="color:var(--text);">VaR Paramétrique</strong> suppose la normalité des rendements :
+      <em>VaR = μ + σ·Φ⁻¹(α)</em>.<br><br>
+      Le <strong style="color:var(--text);">CVaR (Expected Shortfall)</strong> représente la perte moyenne
+      au-delà du seuil VaR, offrant une mesure cohérente du risque de queue.<br><br>
+      Taux sans risque utilisé : <strong style="color:var(--text);">5.25% annuel</strong> (T-Bill 3M US).
+    </p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const RETURNS  = {{ returns_json|safe }};
+const MC_PATHS = {{ mc_paths_json|safe }};
+const MC_DIST  = {{ mc_dist_json|safe }};
+const HORIZON  = {{ horizon }};
+const mono     = "'DM Mono',monospace";
+const grid     = 'rgba(30,45,71,0.5)';
+
+// ── MC Fan Chart ──
+(function(){
+  const labels = Array.from({length: HORIZON+1}, (_,i) => 'J+'+i);
+  const datasets = MC_PATHS.map((path, i) => ({
+    data: path,
+    borderColor: path[path.length-1] > 0 ? 'rgba(0,229,160,0.12)' : 'rgba(255,77,106,0.12)',
+    borderWidth: 1,
+    pointRadius: 0,
+    fill: false,
+    tension: 0.3,
+  }));
+  // Add median line
+  const median = labels.map((_,i) => {
+    const vals = MC_PATHS.map(p => p[i]).sort((a,b)=>a-b);
+    return vals[Math.floor(vals.length/2)];
+  });
+  datasets.push({
+    data: median,
+    borderColor: '#00d4ff',
+    borderWidth: 2,
+    pointRadius: 0,
+    fill: false,
+    tension: 0.3,
+    label: 'Médiane'
+  });
+  new Chart(document.getElementById('mcFanChart'),{
+    type:'line',
+    data:{labels, datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#5a6a82',font:{family:mono,size:10}},grid:{color:grid}},
+        y:{ticks:{color:'#5a6a82',font:{family:mono,size:10},callback:v=>v.toFixed(1)+'%'},grid:{color:grid}}
+      }
+    }
+  });
+})();
+
+// ── Historical Returns Histogram ──
+(function(){
+  const bins=35, min=Math.min(...RETURNS), max=Math.max(...RETURNS);
+  const step=(max-min)/bins;
+  const counts=new Array(bins).fill(0);
+  const labels=Array.from({length:bins},(_,i)=>((min+i*step)).toFixed(3)+'%');
+  RETURNS.forEach(r=>{let i=Math.min(Math.floor((r-min)/step),bins-1);counts[i]++;});
+  const colors=labels.map(l=>parseFloat(l)<0?'rgba(255,77,106,0.7)':'rgba(0,229,160,0.7)');
+  new Chart(document.getElementById('retChart'),{
+    type:'bar',
+    data:{labels,datasets:[{data:counts,backgroundColor:colors,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#5a6a82',font:{family:mono,size:9},maxTicksLimit:8},grid:{color:grid}},
+              y:{ticks:{color:'#5a6a82',font:{family:mono,size:10}},grid:{color:grid}}}}
+  });
+})();
+</script>
+{% endblock %}
